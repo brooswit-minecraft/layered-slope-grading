@@ -1,0 +1,35 @@
+modLoader="javafml" #mandatory
+loaderVersion="${loader_version_range}" #mandatory
+
+license="${mod_license}"
+
+[[mods]] #mandatory
+modId="${mod_id}" #mandatory
+version="${mod_version}" #mandatory
+displayName="${mod_name}" #mandatory
+authors="brooswit"
+description='''Manual layer grading tool for NeoForge 1.21.1, extracted from Dynamic Terrain, built on the Layered Slopes block family.'''
+
+[[dependencies.${mod_id}]]
+    modId="neoforge"
+    type="required"
+    versionRange="[${neo_version},)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="minecraft"
+    type="required"
+    versionRange="${minecraft_version_range}"
+    ordering="NONE"
+    side="BOTH"
+
+# Layered Slopes provides the layered block family this mod's grading-tool/Smoothing code
+# operates on (MINECRAFT-511 extraction); required so a missing install fails loudly at
+# startup instead of silently losing layered-block behavior.
+[[dependencies.${mod_id}]]
+    modId="layeredslopes"
+    type="required"
+    versionRange="[${layeredslopes_version},)"
+    ordering="AFTER"
+    side="BOTH"
