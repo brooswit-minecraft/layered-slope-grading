@@ -41,19 +41,34 @@ Extracted from
 Depends on [Layered Slopes](https://github.com/brooswit-minecraft/layered-slopes)
 (required; see `build.gradle`'s `downloadLayeredSlopes` task and
 `neoforge.mods.toml`'s `layeredslopes` dependency block). Runs fully
-standalone otherwise — **never** requires Dynamic Terrain. Dynamic
-Terrain instead depends on this mod (the same direction it already depends
-on Layered Slopes), because its automatic erosion system
-(`Erosion.java`) calls the exact same `Smoothing.smooth()` mechanics this
-mod ships, just with `disturb=true` instead of this mod's `disturb=false`.
+standalone otherwise — **never** requires Dynamic Terrain, and resolves
+every vanilla-block-to-layered-block mapping itself: `LayeredSlopeGradingMod`
+owns the `LayeredMaterials.register`/`registerSlab`/`joinGroup`/`disturbsTo`
+calls in its own static init (moved here from Dynamic Terrain,
+MINECRAFT-511 Jira comments 52878/52881 — an earlier draft of this mod
+left that registration in `DynamicTerrainMod`, which meant ordinary
+block/slab grading silently had no mappings at all with Dynamic Terrain
+absent). Dynamic Terrain instead depends on this mod (the same direction
+it already depends on Layered Slopes), because its automatic erosion
+system (`Erosion.java`) calls the exact same `Smoothing.smooth()`
+mechanics this mod ships, just with `disturb=true` instead of this mod's
+`disturb=false`; Dynamic Terrain's own copy of the registration block was
+deleted rather than kept as a duplicate.
 
 ## Test coverage — what's covered, what isn't
 
 Headless unit tests (no game bootstrap): `HeadingTest`, `SmoothRulesTest`
 and `SettlingTest` cover the pure decision logic ported from Dynamic
-Terrain unchanged. `Smoothing`/`LayeredMaterials`/`GradingTool` depend on
-Minecraft and NeoForge classes this project's plain `test` sourceSet has
-no classpath access to, so they aren't covered by unit tests here — the
-same limitation Dynamic Terrain had before this extraction. No in-game
-GameTest harness exists in this repo yet; `./gradlew build`'s
-`compileJava`/`test` is the acceptance bar this extraction set.
+Terrain unchanged.
+
+Real runtime evidence: `StandaloneGradingGameTests` (`ci.yml`'s "Run
+GameTests" step, `./gradlew runGameTestServer` against a real NeoForge
+server with ONLY this mod and Layered Slopes installed — Dynamic Terrain
+is never present in that run) proves the production seam this ticket's
+correction was about: `layeredMaterialsResolvesVanillaDirtStandalone`
+confirms `LayeredMaterials.layeredFor(DIRT)`/`layeredForSlab(STONE_SLAB)`
+resolve with no Dynamic Terrain installed, and
+`realVanillaDirtBlockGradesIntoNeighbourStandalone` grades a real plain
+vanilla `DIRT` block through `Smoothing.smooth()` end to end and checks
+the resulting layer counts. `scripts/check_gametest_count.py` fails
+closed unless both named tests actually ran and passed.

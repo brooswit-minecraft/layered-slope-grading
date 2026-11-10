@@ -27,13 +27,20 @@ jobs:
       - name: Check the mod does not require a newer NeoForge than the pack runs
         run: python3 scripts/check_neoforge_floor.py
 
-      # MINECRAFT-511: this mod has no in-game GameTest harness (it ships no blocks of its own
-      # and needs a real paired Layered Slopes jar to boot at all -- see downloadLayeredSlopes in
-      # build.gradle); `./gradlew build` here covers compileJava plus the 3 ported unit test
-      # files (HeadingTest/SmoothRulesTest/SettlingTest), which is the acceptance bar this
-      # extraction set.
       - name: Build and test
         run: ./gradlew build --no-daemon
+
+      # MINECRAFT-511 (Jira comments 52878/52881 on this ticket): real runtime proof -- not just
+      # compile-time -- that this mod resolves ordinary vanilla-block grading with Layered
+      # Slopes ALONE. Dynamic Terrain is never installed in this run; the server boots with only
+      # this mod and Layered Slopes. Gradle reports BUILD SUCCESSFUL even when the GameTest
+      # server fails to start or ran zero tests, so check_gametest_count.py fails closed unless
+      # both named standalone tests actually ran and passed.
+      - name: Run GameTests (standalone, no Dynamic Terrain)
+        run: |
+          set -o pipefail
+          ./gradlew runGameTestServer --no-daemon 2>&1 | tee gametest.log
+          python3 scripts/check_gametest_count.py gametest.log
 
       - name: Upload mod jar
         uses: actions/upload-artifact@v4
