@@ -60,6 +60,49 @@ public final class SmoothingAuthorizationGameTests {
         helper.succeed();
     }
 
+    /**
+     * Regression (PR #2 review): a listener that does NOT cancel the event but instead mutates
+     * the destination cell itself during the callback must not have that mutation silently
+     * overwritten by a stale plan computed before the event fired. {@code smooth()} must detect
+     * the world changed out from under the plan and reject the move, preserving the listener's
+     * own change.
+     */
+    @GameTest(template = "flat_platform")
+    public static void aListenerMutatingTheWorldDuringTheEventIsNotOverwrittenByAStalePlan(GameTestHelper helper) {
+        BlockPos sourcePos = new BlockPos(1, 2, 1);
+        BlockPos destPos = sourcePos.relative(Direction.EAST);
+        BlockPos supportPos = destPos.below();
+
+        helper.setBlock(sourcePos, Blocks.DIRT.defaultBlockState());
+        helper.setBlock(destPos, Blocks.AIR.defaultBlockState());
+        helper.setBlock(supportPos, Blocks.STONE.defaultBlockState());
+
+        BlockState sourceBefore = helper.getBlockState(sourcePos);
+
+        Object mutateDuringEvent = new Object() {
+            @SubscribeEvent
+            public void onAuthorization(SmoothingAuthorizationEvent event) {
+                // Does NOT cancel: simulates a listener that reacts by placing a block of its
+                // own (e.g. a protection mod's barrier) rather than using the cancellation flag.
+                helper.getLevel().setBlock(helper.absolutePos(destPos), Blocks.COBBLESTONE.defaultBlockState(), 3);
+            }
+        };
+        NeoForge.EVENT_BUS.register(mutateDuringEvent);
+        boolean moved;
+        try {
+            moved = Smoothing.smooth(helper.getLevel(), helper.absolutePos(sourcePos), Direction.EAST);
+        } finally {
+            NeoForge.EVENT_BUS.unregister(mutateDuringEvent);
+        }
+
+        helper.assertTrue(!moved, "smooth() must reject a move whose plan went stale during the event");
+        helper.assertTrue(helper.getBlockState(sourcePos).equals(sourceBefore),
+                "the source cell must stay untouched -- the move never applied");
+        helper.assertTrue(helper.getBlockState(destPos).getBlock() == Blocks.COBBLESTONE,
+                "the listener's own destination mutation must be preserved, not overwritten by the stale plan");
+        helper.succeed();
+    }
+
     /** Control: with no listener registered (the production default), the same move still succeeds. */
     @GameTest(template = "flat_platform")
     public static void withNoListenerTheMoveStillSucceeds(GameTestHelper helper) {

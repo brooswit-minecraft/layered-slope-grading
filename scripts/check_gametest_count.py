@@ -24,8 +24,8 @@ class RuntimeEvidenceError(ValueError):
     """The GameTest log cannot prove a complete, non-trivial run."""
 
 
-EXPECTED_REQUIRED_TEST_COUNT = 4  # layeredMaterialsResolvesVanillaDirtStandalone/realVanillaDirtBlockGradesIntoNeighbourStandalone
-# (MINECRAFT-511) + cancellingTheAuthorizationEventLeavesBothEndsUnchanged/withNoListenerTheMoveStillSucceeds (MINECRAFT-510)
+EXPECTED_REQUIRED_TEST_COUNT = 5  # layeredMaterialsResolvesVanillaDirtStandalone/realVanillaDirtBlockGradesIntoNeighbourStandalone
+# (MINECRAFT-511) + cancellingTheAuthorizationEventLeavesBothEndsUnchanged/withNoListenerTheMoveStillSucceeds + aListenerMutatingTheWorldDuringTheEventIsNotOverwrittenByAStalePlan (MINECRAFT-510)
 
 
 def verify_runtime_log(log_text):

@@ -8,22 +8,34 @@ import net.neoforged.bus.api.ICancellableEvent;
 
 /**
  * Fired on {@code NeoForge.EVENT_BUS} immediately before {@link Smoothing#smooth} mutates the
- * world, so a protection/claim mod gets a chance to cancel the move before either end changes --
- * the same cancellable-event shape vanilla's own {@code BlockEvent.BreakEvent} uses, which is
- * what existing claim-protection mods already listen for.
+ * world, so a listener gets a chance to cancel the move before either end changes -- the
+ * cancellable-{@link ICancellableEvent} shape vanilla's own {@code BlockEvent.BreakEvent} uses.
+ *
+ * <p><b>This is a brand-new, mod-specific event type, not {@code BlockEvent.BreakEvent} itself.
+ * An existing claim/protection mod does NOT automatically gain coverage of grading/erosion moves
+ * just because this event exists</b> -- it must add its own explicit listener for {@code
+ * SmoothingAuthorizationEvent} (the same way it would for any other mod's custom event). State
+ * exactly which protection mod(s), if any, have been integrated and tested against this event;
+ * never claim universal claim-mod coverage from this event's mere existence.
  *
  * <p>Covers both halves of the move: {@link #source()} loses up to one layer, {@link
  * #destination()} gains up to one layer (or becomes a new block entirely, e.g. AIR -&gt;
  * LayeredBlock). A listener must authorize (or deny) the move as a whole; there is no partial
  * grant of just one end. Cancelling leaves the world completely unchanged and {@code smooth()}
  * returns {@code false} -- indistinguishable from any other rejected move (blocked destination,
- * unsupported anchor, etc).
+ * unsupported anchor, etc). {@code Smoothing.smooth()} also revalidates the move's planned block
+ * states immediately after this event returns, before applying anything: if a synchronous
+ * listener itself mutated {@link #source()} or {@link #destination()} during this event (rather
+ * than merely cancelling), the move is rejected as stale instead of being applied on top of an
+ * unexpectedly changed world.
  *
- * <p>This event does not itself cover a resulting neighbor update or cave-in: those propagate
- * through vanilla's own {@code Block.UPDATE_ALL} block-change notification once a move is
- * authorized and applied, and are a consumer's (or a listening protection mod's) responsibility
- * to further gate if it cares about that propagation, same as it already must for any other
- * vanilla block change.
+ * <p><b>Not yet covered by this event at all</b> -- an explicit, named gap, not a silent omission:
+ * a resulting neighbor update or cave-in. Those propagate through vanilla's own {@code
+ * Block.UPDATE_ALL} block-change notification once a move is authorized and applied, with no
+ * cancellable gate of their own here. A consumer (e.g. an erosion feature built on top of this
+ * mod) that needs that propagation itself protected must implement and test that guarantee
+ * explicitly -- it does not come from this event, and must not be assumed or claimed without
+ * that implementation actually existing.
  */
 public final class SmoothingAuthorizationEvent extends Event implements ICancellableEvent {
     private final Level level;

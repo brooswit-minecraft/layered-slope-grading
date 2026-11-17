@@ -25,9 +25,17 @@ import net.neoforged.neoforge.common.NeoForge;
 public final class Smoothing {
     private Smoothing() {}
 
-    /** A planned move: nothing has changed in the world yet. */
+    /**
+     * A planned move: nothing has changed in the world yet. {@code sourceStateBefore}/{@code
+     * destinationStateBefore} are the exact block states the plan was computed from, captured so
+     * the plan can be revalidated after firing {@link SmoothingAuthorizationEvent} -- a
+     * synchronous listener can itself mutate the world (e.g. a protection mod placing a barrier,
+     * or removing support), and this plan must never be applied against a world that has since
+     * changed out from under it.
+     */
     private record Move(LayeredBlock block, LayeredBlock destinationBlock, BlockPos source, BlockPos destination,
-            SmoothRules.Plan plan, SmoothRules.Destination kind) {}
+            SmoothRules.Plan plan, SmoothRules.Destination kind,
+            BlockState sourceStateBefore, BlockState destinationStateBefore) {}
 
     /** @return true if a layer moved, false if the move was rejected. */
     public static boolean smooth(Level level, BlockPos pos, Direction direction) {
@@ -41,7 +49,10 @@ public final class Smoothing {
      *     grass top while graded).
      * @return true if a layer moved, false if the move was rejected, including a rejection by a
      *     {@link SmoothingAuthorizationEvent} listener (e.g. a claim/protection mod) cancelling
-     *     the move before either end is touched -- indistinguishable from any other rejection.
+     *     the move before either end is touched -- indistinguishable from any other rejection --
+     *     or because the listener itself mutated the world in a way that makes the plan stale
+     *     (see {@link Move}); the move is also rejected in that case rather than applying a
+     *     stale plan on top of an unexpectedly changed world.
      */
     public static boolean smooth(Level level, BlockPos pos, Direction direction, boolean disturb) {
         if (level.isClientSide()) {
@@ -56,6 +67,12 @@ public final class Smoothing {
                 new SmoothingAuthorizationEvent(level, m.source(), m.destination(), direction, disturb);
         NeoForge.EVENT_BUS.post(authorization);
         if (authorization.isCanceled()) {
+            return false;
+        }
+        if (!level.getBlockState(m.source()).equals(m.sourceStateBefore())
+                || !level.getBlockState(m.destination()).equals(m.destinationStateBefore())) {
+            // A synchronous event listener (or anything else run during the event post) changed
+            // the world out from under this plan -- reject rather than apply a stale plan.
             return false;
         }
         Settling.Result settle = Settling.settle(disturb, m.block() instanceof LayeredGrassBlock, m.kind(),
@@ -109,7 +126,7 @@ public final class Smoothing {
         LayeredBlock finalDestBlock = destBlock;
         LayeredBlock sourceBlock = layeredBlock;
         return SmoothRules.plan(source, kind, dest, anchorSupported(level, pos, destPos, source.ceiling()))
-                .map(plan -> new Move(sourceBlock, finalDestBlock, pos, destPos, plan, kind));
+                .map(plan -> new Move(sourceBlock, finalDestBlock, pos, destPos, plan, kind, sourceState, destState));
     }
 
     /**
