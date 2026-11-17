@@ -16,8 +16,13 @@ Extracted from
 ## What this mod provides
 
 - **`GradingTool`** — the player-facing feature: right-click a block with a
-  pickaxe to pull one sixteenth of it toward you. Pickaxes have no vanilla
-  right-click action on blocks, so nothing vanilla is displaced.
+  pickaxe to pull one sixteenth of it toward you, or with a shovel to push one
+  sixteenth of it away from you. Pickaxes have no vanilla right-click action
+  on blocks, so nothing vanilla is displaced there. Shovels do (vanilla path
+  conversion), so grading takes over any shovel click on a block it
+  recognizes at all, even when the push itself can't proceed (unsupported or
+  blocked destination) — a safe no-op instead of an unexpected
+  flatten-to-path. Hoes are untouched and still till.
 - **`Smoothing`** — the `smooth()`/`canSmooth()` orchestrator that actually
   moves one layer of material from a block into a neighbour. Takes a
   `disturb` flag: `false` for manual grading and the debug command (grass
@@ -70,5 +75,23 @@ confirms `LayeredMaterials.layeredFor(DIRT)`/`layeredForSlab(STONE_SLAB)`
 resolve with no Dynamic Terrain installed, and
 `realVanillaDirtBlockGradesIntoNeighbourStandalone` grades a real plain
 vanilla `DIRT` block through `Smoothing.smooth()` end to end and checks
-the resulting layer counts. `scripts/check_gametest_count.py` fails
-closed unless both named tests actually ran and passed.
+the resulting layer counts.
+
+`GradingToolInteractionGameTests` (MINECRAFT-557) exercises the actual
+player-interaction seam: every test drives `ServerPlayer#gameMode`'s
+`useItemOn`, the real production entry point that fires
+`PlayerInteractEvent.RightClickBlock` on `NeoForge.EVENT_BUS` and falls
+through to vanilla block/item interaction exactly as a real client's
+click would — never `GradingTool`'s method called directly, and never
+`GameTestHelper#useBlock`, which bypasses that event entirely. Covers the
+retained pickaxe pull (regression), the new shovel push (cardinal and
+slab cases), a blocked/unsupported push staying a safe no-op instead of
+an unexpected flatten-to-path, a hoe's vanilla tilling being left alone,
+and an off-hand shovel never grading (so a click can't double-move a
+layer). Not covered here: the client-side half of
+`if (!level.isClientSide())` — GameTests only run server-side, the same
+limitation `StandaloneGradingGameTests` already had for the pickaxe pull,
+and this ticket's shovel push reuses that exact branch unchanged.
+
+`scripts/check_gametest_count.py` fails closed unless all 8 named
+required tests actually ran and passed.
