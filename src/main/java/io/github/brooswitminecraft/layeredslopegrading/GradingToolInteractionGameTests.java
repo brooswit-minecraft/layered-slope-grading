@@ -59,6 +59,19 @@ public final class GradingToolInteractionGameTests {
         return player;
     }
 
+    /** A real, explicitly-creative ServerPlayer: creative behavior must be preserved (move succeeds, no durability lost). */
+    private static ServerPlayer spawnCreativePlayer(GameTestHelper helper, BlockPos standingNear, double dx, double dz) {
+        CommonListenerCookie cookie = CommonListenerCookie.createInitial(new GameProfile(UUID.randomUUID(), "test-mock-player"), false);
+        ServerPlayer player = new ServerPlayer(helper.getLevel().getServer(), helper.getLevel(), cookie.gameProfile(), cookie.clientInformation());
+        Connection connection = new Connection(PacketFlow.SERVERBOUND);
+        new EmbeddedChannel(connection);
+        helper.getLevel().getServer().getPlayerList().placeNewPlayer(connection, player, cookie);
+        player.gameMode.changeGameModeForPlayer(net.minecraft.world.level.GameType.CREATIVE);
+        Vec3 center = Vec3.atCenterOf(helper.absolutePos(standingNear));
+        player.moveTo(center.x + dx, center.y, center.z + dz, 0.0F, 0.0F);
+        return player;
+    }
+
     private static BlockHitResult hitResult(GameTestHelper helper, BlockPos pos) {
         BlockPos absolute = helper.absolutePos(pos);
         return new BlockHitResult(Vec3.atCenterOf(absolute), Direction.NORTH, absolute, true);
@@ -115,6 +128,98 @@ public final class GradingToolInteractionGameTests {
         helper.assertTrue(westState.getBlock() == LayeredSlopesMod.LAYERED_DIRT.get(), "destination (away from the player) must become LAYERED_DIRT after the push");
         helper.assertTrue(westState.getValue(LayeredBlock.LAYERS) == 1, "destination should have gained exactly one layer from the push");
         helper.assertTrue(shovel.getDamageValue() == 1, "a successful push must charge exactly one durability point");
+        helper.succeed();
+    }
+
+    /**
+     * Diagonal (dominant Z) approach, at the real interaction seam: proves the useItemOn path
+     * actually applies {@link Heading#toward}'s dominant-axis decision, not just that the pure
+     * helper picks SOUTH in isolation (HeadingTest already covers that).
+     */
+    @GameTest(template = "flat_platform")
+    public static void pickaxePullsTowardThePlayerOnADiagonalApproach(GameTestHelper helper) {
+        BlockPos source = new BlockPos(1, 2, 1);
+        BlockPos south = source.relative(Direction.SOUTH);
+        helper.setBlock(source, Blocks.DIRT.defaultBlockState());
+        helper.setBlock(south, Blocks.AIR.defaultBlockState());
+        helper.setBlock(south.below(), Blocks.STONE.defaultBlockState());
+
+        ServerPlayer player = spawnSurvivalPlayer(helper, source, 0.8, 2.0); // |dz| > |dx|: dominant axis = Z, dz > 0 -> SOUTH
+        ItemStack pickaxe = new ItemStack(Items.DIAMOND_PICKAXE);
+        player.setItemInHand(InteractionHand.MAIN_HAND, pickaxe);
+
+        player.gameMode.useItemOn(player, helper.getLevel(), pickaxe, InteractionHand.MAIN_HAND, hitResult(helper, source));
+
+        BlockState southState = helper.getBlockState(south);
+        helper.assertTrue(southState.getBlock() == LayeredSlopesMod.LAYERED_DIRT.get(), "a diagonal (dominant-Z) approach must still pull into the dominant SOUTH neighbor");
+        helper.assertTrue(southState.getValue(LayeredBlock.LAYERS) == 1, "destination should have gained exactly one layer from the pull");
+        helper.assertTrue(helper.getBlockState(source.relative(Direction.EAST)).getBlock() == Blocks.AIR, "the non-dominant X neighbor must be untouched");
+        helper.succeed();
+    }
+
+    /** Shovel counterpart of the diagonal test above: the push goes to the opposite (NORTH) neighbor. */
+    @GameTest(template = "flat_platform")
+    public static void shovelPushesAwayFromThePlayerOnADiagonalApproach(GameTestHelper helper) {
+        BlockPos source = new BlockPos(1, 2, 1);
+        BlockPos north = source.relative(Direction.NORTH);
+        helper.setBlock(source, Blocks.DIRT.defaultBlockState());
+        helper.setBlock(north, Blocks.AIR.defaultBlockState());
+        helper.setBlock(north.below(), Blocks.STONE.defaultBlockState());
+
+        ServerPlayer player = spawnSurvivalPlayer(helper, source, 0.8, 2.0); // dominant Z, toward = SOUTH -> push = NORTH
+        ItemStack shovel = new ItemStack(Items.DIAMOND_SHOVEL);
+        player.setItemInHand(InteractionHand.MAIN_HAND, shovel);
+
+        player.gameMode.useItemOn(player, helper.getLevel(), shovel, InteractionHand.MAIN_HAND, hitResult(helper, source));
+
+        BlockState northState = helper.getBlockState(north);
+        helper.assertTrue(northState.getBlock() == LayeredSlopesMod.LAYERED_DIRT.get(), "a diagonal (dominant-Z) approach must still push into the opposite NORTH neighbor");
+        helper.assertTrue(northState.getValue(LayeredBlock.LAYERS) == 1, "destination should have gained exactly one layer from the push");
+        helper.succeed();
+    }
+
+    /**
+     * The documented tie rule (Heading.toward: "ties go to Z"), exercised at the real interaction
+     * seam with an exactly-tied dx/dz approach, not just HeadingTest's isolated helper call.
+     */
+    @GameTest(template = "flat_platform")
+    public static void pickaxePullsTowardThePlayerOnATiedDiagonalApproach(GameTestHelper helper) {
+        BlockPos source = new BlockPos(1, 2, 1);
+        BlockPos south = source.relative(Direction.SOUTH);
+        helper.setBlock(source, Blocks.DIRT.defaultBlockState());
+        helper.setBlock(south, Blocks.AIR.defaultBlockState());
+        helper.setBlock(south.below(), Blocks.STONE.defaultBlockState());
+
+        ServerPlayer player = spawnSurvivalPlayer(helper, source, 1.5, 1.5); // |dx| == |dz|: tie goes to Z -> SOUTH
+        ItemStack pickaxe = new ItemStack(Items.DIAMOND_PICKAXE);
+        player.setItemInHand(InteractionHand.MAIN_HAND, pickaxe);
+
+        player.gameMode.useItemOn(player, helper.getLevel(), pickaxe, InteractionHand.MAIN_HAND, hitResult(helper, source));
+
+        BlockState southState = helper.getBlockState(south);
+        helper.assertTrue(southState.getBlock() == LayeredSlopesMod.LAYERED_DIRT.get(), "a tied dx/dz approach must pull into SOUTH per the documented Z tie-break");
+        helper.assertTrue(southState.getValue(LayeredBlock.LAYERS) == 1, "destination should have gained exactly one layer from the pull");
+        helper.succeed();
+    }
+
+    /** Shovel counterpart of the tie test above: the push goes to the opposite (NORTH) neighbor. */
+    @GameTest(template = "flat_platform")
+    public static void shovelPushesAwayFromThePlayerOnATiedDiagonalApproach(GameTestHelper helper) {
+        BlockPos source = new BlockPos(1, 2, 1);
+        BlockPos north = source.relative(Direction.NORTH);
+        helper.setBlock(source, Blocks.DIRT.defaultBlockState());
+        helper.setBlock(north, Blocks.AIR.defaultBlockState());
+        helper.setBlock(north.below(), Blocks.STONE.defaultBlockState());
+
+        ServerPlayer player = spawnSurvivalPlayer(helper, source, 1.5, 1.5); // tie goes to Z, toward = SOUTH -> push = NORTH
+        ItemStack shovel = new ItemStack(Items.DIAMOND_SHOVEL);
+        player.setItemInHand(InteractionHand.MAIN_HAND, shovel);
+
+        player.gameMode.useItemOn(player, helper.getLevel(), shovel, InteractionHand.MAIN_HAND, hitResult(helper, source));
+
+        BlockState northState = helper.getBlockState(north);
+        helper.assertTrue(northState.getBlock() == LayeredSlopesMod.LAYERED_DIRT.get(), "a tied dx/dz approach must push into NORTH (opposite the documented Z tie-break)");
+        helper.assertTrue(northState.getValue(LayeredBlock.LAYERS) == 1, "destination should have gained exactly one layer from the push");
         helper.succeed();
     }
 
@@ -208,6 +313,73 @@ public final class GradingToolInteractionGameTests {
         helper.assertTrue(sourceState.getBlock() == Blocks.DIRT_PATH, "an off-hand shovel must fall through to vanilla path conversion, not be swallowed silently");
         helper.assertTrue(sourceState.getBlock() != LayeredSlopesMod.LAYERED_DIRT.get(), "an off-hand shovel must never grade: that would duplicate a main-hand click's move");
         helper.assertTrue(helper.getBlockState(west).getBlock() == Blocks.AIR, "grading must not have also pushed a layer away, even though the destination was free");
+        helper.succeed();
+    }
+
+    /**
+     * A supported grass source at the real seam: manual grading always calls smooth() with
+     * disturb=false (unlike erosion's disturb=true), so pushing a GRASS_BLOCK must keep a grass
+     * top on both ends -- LAYERED_GRASS, never settled down to LAYERED_DIRT. SettlingTest already
+     * covers this decision in isolation; this proves GradingTool actually calls smooth() that way.
+     */
+    @GameTest(template = "flat_platform")
+    public static void shovelPushesAGrassSourceAndKeepsTheGrassTop(GameTestHelper helper) {
+        BlockPos source = new BlockPos(1, 2, 1);
+        BlockPos west = source.relative(Direction.WEST);
+        helper.setBlock(source, Blocks.GRASS_BLOCK.defaultBlockState());
+        helper.setBlock(west, Blocks.AIR.defaultBlockState());
+        helper.setBlock(west.below(), Blocks.STONE.defaultBlockState());
+
+        ServerPlayer player = spawnSurvivalPlayer(helper, source, 2.0, 0.0);
+        ItemStack shovel = new ItemStack(Items.DIAMOND_SHOVEL);
+        player.setItemInHand(InteractionHand.MAIN_HAND, shovel);
+
+        player.gameMode.useItemOn(player, helper.getLevel(), shovel, InteractionHand.MAIN_HAND, hitResult(helper, source));
+
+        helper.assertTrue(helper.getBlockState(source).getBlock() == LayeredSlopesMod.LAYERED_GRASS.get(), "manual grading (disturb=false) must keep the source's grass top, never settle it to dirt");
+        helper.assertTrue(helper.getBlockState(west).getBlock() == LayeredSlopesMod.LAYERED_GRASS.get(), "manual grading (disturb=false) must keep the destination's grass top, never settle it to dirt");
+        helper.succeed();
+    }
+
+    /** The ticket's explicit "preserve creative behavior" requirement: the push still succeeds, but no durability is lost. */
+    @GameTest(template = "flat_platform")
+    public static void shovelPushSucceedsForACreativePlayerWithNoDurabilityLoss(GameTestHelper helper) {
+        BlockPos source = new BlockPos(1, 2, 1);
+        BlockPos west = source.relative(Direction.WEST);
+        helper.setBlock(source, Blocks.DIRT.defaultBlockState());
+        helper.setBlock(west, Blocks.AIR.defaultBlockState());
+        helper.setBlock(west.below(), Blocks.STONE.defaultBlockState());
+
+        ServerPlayer player = spawnCreativePlayer(helper, source, 2.0, 0.0);
+        ItemStack shovel = new ItemStack(Items.DIAMOND_SHOVEL);
+        player.setItemInHand(InteractionHand.MAIN_HAND, shovel);
+
+        player.gameMode.useItemOn(player, helper.getLevel(), shovel, InteractionHand.MAIN_HAND, hitResult(helper, source));
+
+        helper.assertTrue(helper.getBlockState(west).getBlock() == LayeredSlopesMod.LAYERED_DIRT.get(), "a creative player's push must still actually move a layer");
+        helper.assertTrue(helper.getBlockState(west).getValue(LayeredBlock.LAYERS) == 1, "destination should have gained exactly one layer from the push");
+        helper.assertTrue(shovel.getDamageValue() == 0, "a creative player's tool must never lose durability");
+        helper.succeed();
+    }
+
+    /**
+     * A non-grading target: a block Smoothing has no mapping for at all (unlike the hoe test,
+     * which covers a non-grading TOOL on grading-eligible terrain). Grading must leave the click
+     * alone; since vanilla shovels have no action on obsidian either, nothing happens at all.
+     */
+    @GameTest(template = "flat_platform")
+    public static void shovelOnANonGradingTargetIsUnaffectedByGrading(GameTestHelper helper) {
+        BlockPos source = new BlockPos(1, 2, 1);
+        helper.setBlock(source, Blocks.OBSIDIAN.defaultBlockState());
+
+        ServerPlayer player = spawnSurvivalPlayer(helper, source, 2.0, 0.0);
+        ItemStack shovel = new ItemStack(Items.DIAMOND_SHOVEL);
+        player.setItemInHand(InteractionHand.MAIN_HAND, shovel);
+
+        player.gameMode.useItemOn(player, helper.getLevel(), shovel, InteractionHand.MAIN_HAND, hitResult(helper, source));
+
+        helper.assertTrue(helper.getBlockState(source).getBlock() == Blocks.OBSIDIAN, "a block grading has no mapping for at all must be left completely untouched");
+        helper.assertTrue(shovel.getDamageValue() == 0, "no durability should be charged when grading never took over the click");
         helper.succeed();
     }
 }

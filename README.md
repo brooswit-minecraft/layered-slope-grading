@@ -88,10 +88,21 @@ retained pickaxe pull (regression), the new shovel push (cardinal and
 slab cases), a blocked/unsupported push staying a safe no-op instead of
 an unexpected flatten-to-path, a hoe's vanilla tilling being left alone,
 and an off-hand shovel never grading (so a click can't double-move a
-layer). Not covered here: the client-side half of
-`if (!level.isClientSide())` — GameTests only run server-side, the same
-limitation `StandaloneGradingGameTests` already had for the pickaxe pull,
-and this ticket's shovel push reuses that exact branch unchanged.
+layer), plus a diagonal (dominant-Z) and an exactly-tied dx/dz approach
+for both tools — proving the interaction seam itself applies `Heading`'s
+dominant-axis/tie-break decision, not just that the pure helper does
+(that's `HeadingTest`'s job, in isolation). Also covers a supported grass
+source keeping its grass top (manual grading's `disturb=false`, at the
+real seam rather than only `SettlingTest`'s pure decision), a creative
+player's push succeeding with no durability lost, and a non-grading
+target (a block `Smoothing` has no mapping for at all, distinct from the
+hoe test's non-grading *tool*) left completely untouched.
 
-`scripts/check_gametest_count.py` fails closed unless all 8 named
+Not covered here: the client-side half of `if (!level.isClientSide())`
+— GameTests only run server-side, the same limitation
+`StandaloneGradingGameTests` already had for the pickaxe pull, and this
+ticket's shovel push reuses that exact branch unchanged; there is no
+GameTest harness seam to drive an actual client prediction path.
+
+`scripts/check_gametest_count.py` fails closed unless all 15 named
 required tests actually ran and passed.

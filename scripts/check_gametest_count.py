@@ -24,7 +24,7 @@ class RuntimeEvidenceError(ValueError):
     """The GameTest log cannot prove a complete, non-trivial run."""
 
 
-EXPECTED_REQUIRED_TEST_COUNT = 8  # 2 standalone (MINECRAFT-511) + 6 GradingToolInteractionGameTests (MINECRAFT-557)
+EXPECTED_REQUIRED_TEST_COUNT = 15  # 2 standalone (MINECRAFT-511) + 13 GradingToolInteractionGameTests (MINECRAFT-557)
 
 
 def verify_runtime_log(log_text):

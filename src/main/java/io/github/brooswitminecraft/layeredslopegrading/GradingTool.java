@@ -62,8 +62,10 @@ public final class GradingTool {
             }
             return;
         }
-        if (!level.isClientSide()) {
-            Smoothing.smooth(level, pos, direction);
+        if (!level.isClientSide() && Smoothing.smooth(level, pos, direction)) {
+            // smooth() can still reject a move canSmooth() just approved (e.g. a listener -- such
+            // as MINECRAFT-510's SmoothingAuthorizationEvent, once it lands -- cancels the move, or
+            // the plan goes stale between the two calls): only a real mutation charges durability.
             stack.hurtAndBreak(1, player, EquipmentSlot.MAINHAND);
         }
         event.setCanceled(true);
