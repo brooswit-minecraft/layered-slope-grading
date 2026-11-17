@@ -16,6 +16,7 @@ import net.minecraft.world.level.block.SlabBlock;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.SlabType;
 import net.minecraft.world.level.block.state.BlockState;
+import net.neoforged.neoforge.common.NeoForge;
 
 /**
  * smooth(direction): move exactly one sixteenth of material from a block into
@@ -38,7 +39,9 @@ public final class Smoothing {
      *     settles as dirt on both ends instead of keeping a grass top. Erosion
      *     disturbs; manual grading and the debug command do not (grass keeps its
      *     grass top while graded).
-     * @return true if a layer moved, false if the move was rejected.
+     * @return true if a layer moved, false if the move was rejected, including a rejection by a
+     *     {@link SmoothingAuthorizationEvent} listener (e.g. a claim/protection mod) cancelling
+     *     the move before either end is touched -- indistinguishable from any other rejection.
      */
     public static boolean smooth(Level level, BlockPos pos, Direction direction, boolean disturb) {
         if (level.isClientSide()) {
@@ -49,6 +52,12 @@ public final class Smoothing {
             return false;
         }
         Move m = move.get();
+        SmoothingAuthorizationEvent authorization =
+                new SmoothingAuthorizationEvent(level, m.source(), m.destination(), direction, disturb);
+        NeoForge.EVENT_BUS.post(authorization);
+        if (authorization.isCanceled()) {
+            return false;
+        }
         Settling.Result settle = Settling.settle(disturb, m.block() instanceof LayeredGrassBlock, m.kind(),
                 m.destinationBlock() instanceof LayeredGrassBlock);
         LayeredBlock sourceBlock = settle.source() ? LayeredMaterials.disturbed(m.block()) : m.block();
