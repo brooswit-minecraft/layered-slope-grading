@@ -6,12 +6,12 @@ block family.
 NeoForge 1.21.1, Java 21. Mod ID: `layeredslopegrading`. MIT licensed.
 
 Extracted from
-[Dynamic Terrain](https://github.com/brooswit-minecraft/dynamic-terrain)
-(MINECRAFT-511), following the same pattern as the earlier
-[Layered Slopes](https://github.com/brooswit-minecraft/layered-slopes)
+[Legacy Dynamic Terrain](https://github.com/brooswit-minecraft/legacy-dynamic-terrain)
+(formerly Dynamic Terrain) (MINECRAFT-511), following the same pattern as
+the earlier [Layered Slopes](https://github.com/brooswit-minecraft/layered-slopes)
 (MINECRAFT-499) and
-[Smooth Slopes](https://github.com/brooswit-minecraft/smooth-slopes)
-(MINECRAFT-500) extractions.
+[Layered Slopes Smooth Terrain](https://github.com/brooswit-minecraft/layered-slopes-smooth-terrain)
+(formerly Smooth Slopes) (MINECRAFT-500) extractions.
 
 ## What this mod provides
 
