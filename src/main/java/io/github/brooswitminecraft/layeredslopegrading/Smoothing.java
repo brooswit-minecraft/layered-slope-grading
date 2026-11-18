@@ -26,12 +26,13 @@ public final class Smoothing {
     private Smoothing() {}
 
     /**
-     * A planned move: nothing has changed in the world yet. {@code sourceStateBefore}/{@code
-     * destinationStateBefore} are the exact block states the plan was computed from, captured so
-     * the plan can be revalidated after firing {@link SmoothingAuthorizationEvent} -- a
-     * synchronous listener can itself mutate the world (e.g. a protection mod placing a barrier,
-     * or removing support), and this plan must never be applied against a world that has since
-     * changed out from under it.
+     * A planned move: nothing has changed in the world yet. Every field here, {@link
+     * #plan}/{@link #kind} included, is re-derived and compared by value after firing {@link
+     * SmoothingAuthorizationEvent} ({@code smooth()}'s {@code equals(freshlyRecomputedMove)}
+     * check) -- a synchronous listener can mutate ANY part of the world this plan depended on
+     * (source, destination, OR the anchor-support block the destination relies on, which is
+     * never one of those two positions), and this plan must never be applied against a world
+     * that has since changed out from under it in any such way.
      */
     private record Move(LayeredBlock block, LayeredBlock destinationBlock, BlockPos source, BlockPos destination,
             SmoothRules.Plan plan, SmoothRules.Destination kind,
@@ -50,9 +51,10 @@ public final class Smoothing {
      * @return true if a layer moved, false if the move was rejected, including a rejection by a
      *     {@link SmoothingAuthorizationEvent} listener (e.g. a claim/protection mod) cancelling
      *     the move before either end is touched -- indistinguishable from any other rejection --
-     *     or because the listener itself mutated the world in a way that makes the plan stale
-     *     (see {@link Move}); the move is also rejected in that case rather than applying a
-     *     stale plan on top of an unexpectedly changed world.
+     *     or because the listener itself mutated the world (anywhere the plan depended on,
+     *     including the anchor-support block) in a way that makes the plan stale (see {@link
+     *     Move}); the move is also rejected in that case rather than applying a stale plan on
+     *     top of an unexpectedly changed world.
      */
     public static boolean smooth(Level level, BlockPos pos, Direction direction, boolean disturb) {
         if (level.isClientSide()) {
@@ -69,10 +71,13 @@ public final class Smoothing {
         if (authorization.isCanceled()) {
             return false;
         }
-        if (!level.getBlockState(m.source()).equals(m.sourceStateBefore())
-                || !level.getBlockState(m.destination()).equals(m.destinationStateBefore())) {
-            // A synchronous event listener (or anything else run during the event post) changed
-            // the world out from under this plan -- reject rather than apply a stale plan.
+        // Re-derive the plan from the world as it stands right now and require it to match
+        // byte-for-byte what was authorized above: this catches a listener changing source,
+        // destination, OR the anchor-support block (never one of those two positions, so the
+        // state-equality check above alone cannot see it) -- any such change invalidates the
+        // specific operation that was just authorized, so re-plan() rather than re-check two
+        // fixed positions.
+        if (!plan(level, pos, direction).equals(move)) {
             return false;
         }
         Settling.Result settle = Settling.settle(disturb, m.block() instanceof LayeredGrassBlock, m.kind(),

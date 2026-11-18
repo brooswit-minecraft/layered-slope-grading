@@ -103,6 +103,50 @@ public final class SmoothingAuthorizationGameTests {
         helper.succeed();
     }
 
+    /**
+     * Regression (PR #2 follow-up review): a listener that removes the destination's anchor
+     * support -- a THIRD position, never source or destination itself -- without touching
+     * either of those two block states, must still invalidate the plan. A check limited to
+     * source/destination state equality cannot see this; only re-deriving the plan does.
+     */
+    @GameTest(template = "flat_platform")
+    public static void aListenerRemovingOnlyTheSupportBlockIsNotOverwrittenByAStalePlan(GameTestHelper helper) {
+        BlockPos sourcePos = new BlockPos(1, 2, 1);
+        BlockPos destPos = sourcePos.relative(Direction.EAST);
+        BlockPos supportPos = destPos.below();
+
+        helper.setBlock(sourcePos, Blocks.DIRT.defaultBlockState());
+        helper.setBlock(destPos, Blocks.AIR.defaultBlockState());
+        helper.setBlock(supportPos, Blocks.STONE.defaultBlockState());
+
+        BlockState sourceBefore = helper.getBlockState(sourcePos);
+        BlockState destBefore = helper.getBlockState(destPos);
+
+        Object removeSupport = new Object() {
+            @SubscribeEvent
+            public void onAuthorization(SmoothingAuthorizationEvent event) {
+                // Does NOT cancel, and does NOT touch source or destination -- only the support
+                // block underneath the destination, which the plan relied on for anchoring.
+                helper.getLevel().setBlock(helper.absolutePos(supportPos), Blocks.AIR.defaultBlockState(), 3);
+            }
+        };
+        NeoForge.EVENT_BUS.register(removeSupport);
+        boolean moved;
+        try {
+            moved = Smoothing.smooth(helper.getLevel(), helper.absolutePos(sourcePos), Direction.EAST);
+        } finally {
+            NeoForge.EVENT_BUS.unregister(removeSupport);
+        }
+
+        helper.assertTrue(!moved, "smooth() must reject a move whose support was removed during the event, "
+                + "even though source/destination block states never changed");
+        helper.assertTrue(helper.getBlockState(sourcePos).equals(sourceBefore),
+                "the source cell must stay untouched");
+        helper.assertTrue(helper.getBlockState(destPos).equals(destBefore),
+                "the destination cell must stay untouched (still air, not an unsupported new layer)");
+        helper.succeed();
+    }
+
     /** Control: with no listener registered (the production default), the same move still succeeds. */
     @GameTest(template = "flat_platform")
     public static void withNoListenerTheMoveStillSucceeds(GameTestHelper helper) {
