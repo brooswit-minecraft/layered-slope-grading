@@ -1,6 +1,7 @@
 package io.github.brooswitminecraft.layeredslopegrading;
 
 import java.util.UUID;
+import java.util.function.Consumer;
 
 import com.mojang.authlib.GameProfile;
 
@@ -23,6 +24,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -269,6 +271,42 @@ public final class GradingToolInteractionGameTests {
         helper.assertTrue(helper.getBlockState(source).getBlock() == Blocks.DIRT, "a blocked push must leave the source completely unchanged, not flattened to a path");
         helper.assertTrue(helper.getBlockState(west).getBlock() == Blocks.STONE, "a blocked push must leave the blocked destination completely unchanged");
         helper.assertTrue(shovel.getDamageValue() == 0, "a blocked push must not charge durability: nothing actually moved");
+        helper.succeed();
+    }
+
+    /**
+     * MINECRAFT-510's SmoothingAuthorizationEvent, now on main, is the first thing that can make
+     * canSmooth()==true but smooth()==false: a listener denies the move after GradingTool already
+     * confirmed it looked feasible. GradingTool must honor that rejection exactly like any other
+     * (no mutation, no durability, no vanilla path conversion) -- regression for the showstopper
+     * wroosbit's review found (GradingTool previously charged durability on canSmooth() alone).
+     */
+    @GameTest(template = "flat_platform")
+    public static void shovelPushDeniedByAuthorizationEventDoesNotMutateOrChargeDurability(GameTestHelper helper) {
+        BlockPos source = new BlockPos(1, 2, 1);
+        BlockPos west = source.relative(Direction.WEST);
+        helper.setBlock(source, Blocks.DIRT.defaultBlockState());
+        helper.setBlock(west, Blocks.AIR.defaultBlockState());
+        helper.setBlock(west.below(), Blocks.STONE.defaultBlockState()); // supported: canSmooth() alone would accept this
+
+        Consumer<SmoothingAuthorizationEvent> denyAll = event -> event.setCanceled(true);
+        NeoForge.EVENT_BUS.addListener(denyAll);
+        try {
+            ServerPlayer player = spawnSurvivalPlayer(helper, source, 2.0, 0.0);
+            ItemStack shovel = new ItemStack(Items.DIAMOND_SHOVEL);
+            player.setItemInHand(InteractionHand.MAIN_HAND, shovel);
+
+            player.gameMode.useItemOn(player, helper.getLevel(), shovel, InteractionHand.MAIN_HAND, hitResult(helper, source));
+
+            helper.assertTrue(helper.getBlockState(source).getBlock() == Blocks.DIRT,
+                    "a denied SmoothingAuthorizationEvent must leave the source unchanged, even though canSmooth() alone would have accepted the move");
+            helper.assertTrue(helper.getBlockState(west).getBlock() == Blocks.AIR,
+                    "a denied SmoothingAuthorizationEvent must leave the destination unchanged");
+            helper.assertTrue(shovel.getDamageValue() == 0,
+                    "a denied SmoothingAuthorizationEvent must not charge durability: smooth() returned false");
+        } finally {
+            NeoForge.EVENT_BUS.unregister(denyAll);
+        }
         helper.succeed();
     }
 

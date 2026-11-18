@@ -136,6 +136,7 @@ public final class Smoothing {
         }
         LayeredBlock layeredBlock = info.get().block();
         SmoothRules.Cell source = info.get().cell();
+        BlockState sourceState = level.getBlockState(pos);
 
         BlockPos destPos = pos.relative(direction);
         BlockState destState = level.getBlockState(destPos);

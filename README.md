@@ -96,10 +96,17 @@ source keeping its grass top (manual grading's `disturb=false`, at the
 real seam rather than only `SettlingTest`'s pure decision), a creative
 player's push succeeding with no durability lost, and a non-grading
 target (a block `Smoothing` has no mapping for at all, distinct from the
-hoe test's non-grading *tool*) left completely untouched.
+hoe test's non-grading *tool*) left completely untouched. Also covers a
+push denied by MINECRAFT-510's `SmoothingAuthorizationEvent` (`main`'s
+generic Smoothing protection seam): `canSmooth()` alone would accept the
+move, but a denying listener still leaves it a safe no-op, with no
+mutation, durability charge, or vanilla path conversion -- regression
+coverage for the exact return-value bug an earlier review caught in
+`GradingTool`.
 
-`scripts/check_gametest_count.py` fails closed unless all 15 named
-required tests actually ran and passed.
+`scripts/check_gametest_count.py` fails closed unless all 20 named
+required tests actually ran and passed (2 MINECRAFT-511 standalone + 14
+MINECRAFT-557 interaction-seam + 4 MINECRAFT-510 authorization/staleness).
 
 ### Client-side evidence
 
