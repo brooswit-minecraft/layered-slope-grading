@@ -11,10 +11,12 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 /**
- * Only compiled with -PclientAcceptance, never part of a normal release. Prepares a plain vanilla
- * DIRT source with a supported empty neighbor to its west, and a survival player holding a
- * shovel standing east of it (so grading's push heading is WEST, away from the player) -- the
- * fixture {@link AcceptanceClient} drives the real client-prediction interaction against.
+ * Only compiled with -PclientAcceptance, never part of a normal release. Prepares two plain
+ * vanilla DIRT sources and a survival player holding a shovel standing east of both (so
+ * grading's push heading is WEST, away from the player) -- the fixture {@link AcceptanceClient}
+ * drives the real client-prediction interaction against: SOURCE/WEST is a supported, successful
+ * push; BLOCKED_SOURCE/BLOCKED_WEST has its push destination occupied by STONE, the
+ * blocked/unsupported case that must stay a safe no-op on both client and server.
  */
 @EventBusSubscriber(modid = LayeredSlopeGradingMod.MODID)
 public final class AcceptanceServer {
@@ -22,6 +24,8 @@ public final class AcceptanceServer {
 
     static final BlockPos SOURCE = new BlockPos(0, 100, 1);
     static final BlockPos WEST = new BlockPos(-1, 100, 1);
+    static final BlockPos BLOCKED_SOURCE = new BlockPos(0, 100, 0);
+    static final BlockPos BLOCKED_WEST = new BlockPos(-1, 100, 0);
 
     @SubscribeEvent
     public static void tick(ServerTickEvent.Post event) {
@@ -32,9 +36,9 @@ public final class AcceptanceServer {
         if (ticks++ == 0) {
             player.setInvulnerable(true);
             player.gameMode.changeGameModeForPlayer(GameType.SURVIVAL);
-            // A full platform, not just under SOURCE/WEST -- the player's own standing position
-            // (east of SOURCE) needs a floor too, or they free-fall and the vanilla anti-cheat
-            // kicks them for "flying" before AcceptanceClient ever gets to click anything.
+            // A full platform, not just under the grading cells -- the player's own standing
+            // position (east of both sources) needs a floor too, or they free-fall and the
+            // vanilla anti-cheat kicks them for "flying" before AcceptanceClient ever clicks.
             for (int x = -2; x <= 3; x++) {
                 for (int z = 0; z <= 2; z++) {
                     level.setBlock(new BlockPos(x, 99, z), Blocks.STONE.defaultBlockState(), 3);
@@ -42,8 +46,10 @@ public final class AcceptanceServer {
             }
             level.setBlock(SOURCE, Blocks.DIRT.defaultBlockState(), 3);
             level.setBlock(WEST, Blocks.AIR.defaultBlockState(), 3);
+            level.setBlock(BLOCKED_SOURCE, Blocks.DIRT.defaultBlockState(), 3);
+            level.setBlock(BLOCKED_WEST, Blocks.STONE.defaultBlockState(), 3); // blocked: push destination occupied
             player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.DIAMOND_SHOVEL));
-            player.teleportTo(2.5, 100, 1.5); // east of SOURCE: pull heading = EAST, so push heading = WEST
+            player.teleportTo(2.5, 100, 1.5); // east of both sources: pull heading = EAST, push heading = WEST
             LayeredSlopeGradingMod.LOGGER.info("GRADING_ACCEPTANCE_SERVER_READY");
         }
     }
