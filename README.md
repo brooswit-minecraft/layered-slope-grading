@@ -98,11 +98,25 @@ player's push succeeding with no durability lost, and a non-grading
 target (a block `Smoothing` has no mapping for at all, distinct from the
 hoe test's non-grading *tool*) left completely untouched.
 
-Not covered here: the client-side half of `if (!level.isClientSide())`
-— GameTests only run server-side, the same limitation
-`StandaloneGradingGameTests` already had for the pickaxe pull, and this
-ticket's shovel push reuses that exact branch unchanged; there is no
-GameTest harness seam to drive an actual client prediction path.
-
 `scripts/check_gametest_count.py` fails closed unless all 15 named
 required tests actually ran and passed.
+
+### Client-side evidence
+
+GameTests only run server-side, so none of the above can observe the
+client-prediction half of `GradingTool`'s `if (!level.isClientSide())`
+guard. `AcceptanceClient`/`AcceptanceServer` (`src/clientAcceptance/`,
+compiled only with `-PclientAcceptance`, ported from
+[Layered Slopes](https://github.com/brooswit-minecraft/layered-slopes)'
+own client-acceptance pattern) cover that: a real disposable server +
+real disposable client join over LAN, and the client drives
+`MultiPlayerGameMode#useItemOn` directly — the actual production method
+a mouse click calls, which fires the same `PlayerInteractEvent` as its
+server counterpart. It proves a grading-eligible shovel click is
+cancelled with no local block mutation and no local durability loss
+(the click packet is still sent to the server unconditionally,
+confirmed by reading `MultiPlayerGameMode#useItemOn`'s
+`startPrediction` call), and that the server's authoritative push still
+lands and syncs back to the client afterward. See
+`tools/client-smoke/acceptance.py` and the `client-acceptance` CI job
+(Xvfb + software GL, same as Layered Slopes').
