@@ -32,8 +32,14 @@ public final class AcceptanceServer {
         if (ticks++ == 0) {
             player.setInvulnerable(true);
             player.gameMode.changeGameModeForPlayer(GameType.SURVIVAL);
-            level.setBlock(SOURCE.below(), Blocks.STONE.defaultBlockState(), 3);
-            level.setBlock(WEST.below(), Blocks.STONE.defaultBlockState(), 3);
+            // A full platform, not just under SOURCE/WEST -- the player's own standing position
+            // (east of SOURCE) needs a floor too, or they free-fall and the vanilla anti-cheat
+            // kicks them for "flying" before AcceptanceClient ever gets to click anything.
+            for (int x = -2; x <= 3; x++) {
+                for (int z = 0; z <= 2; z++) {
+                    level.setBlock(new BlockPos(x, 99, z), Blocks.STONE.defaultBlockState(), 3);
+                }
+            }
             level.setBlock(SOURCE, Blocks.DIRT.defaultBlockState(), 3);
             level.setBlock(WEST, Blocks.AIR.defaultBlockState(), 3);
             player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.DIAMOND_SHOVEL));
