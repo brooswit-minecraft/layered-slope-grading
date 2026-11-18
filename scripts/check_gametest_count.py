@@ -24,8 +24,10 @@ class RuntimeEvidenceError(ValueError):
     """The GameTest log cannot prove a complete, non-trivial run."""
 
 
-EXPECTED_REQUIRED_TEST_COUNT = 6  # layeredMaterialsResolvesVanillaDirtStandalone/realVanillaDirtBlockGradesIntoNeighbourStandalone
-# (MINECRAFT-511) + cancellingTheAuthorizationEventLeavesBothEndsUnchanged/withNoListenerTheMoveStillSucceeds + aListenerMutatingTheWorldDuringTheEventIsNotOverwrittenByAStalePlan + aListenerRemovingOnlyTheSupportBlockIsNotOverwrittenByAStalePlan (MINECRAFT-510)
+EXPECTED_REQUIRED_TEST_COUNT = 20  # 2 standalone (MINECRAFT-511) + 14 GradingToolInteractionGameTests (MINECRAFT-557)
+# + 4 cancellingTheAuthorizationEventLeavesBothEndsUnchanged/withNoListenerTheMoveStillSucceeds/
+# aListenerMutatingTheWorldDuringTheEventIsNotOverwrittenByAStalePlan/
+# aListenerRemovingOnlyTheSupportBlockIsNotOverwrittenByAStalePlan (MINECRAFT-510)
 
 
 def verify_runtime_log(log_text):
@@ -54,7 +56,8 @@ def main(argv):
     except (OSError, RuntimeEvidenceError) as error:
         raise SystemExit(f"GameTest count guard failed: {error}") from error
     print(f"GameTest count guard passed: {passed} required cases "
-          "(MINECRAFT-511 standalone acceptance + MINECRAFT-510 smoothing-authorization acceptance)")
+          "(MINECRAFT-511 standalone + MINECRAFT-557 interaction-seam + MINECRAFT-510 "
+          "smoothing-authorization acceptance)")
 
 
 if __name__ == "__main__":

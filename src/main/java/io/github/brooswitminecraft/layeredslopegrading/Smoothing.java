@@ -94,7 +94,20 @@ public final class Smoothing {
         return plan(level, pos, direction).isPresent();
     }
 
-    private static Optional<Move> plan(Level level, BlockPos pos, Direction direction) {
+    /**
+     * Whether {@code pos} holds material smooth() knows how to move at all, independent of
+     * whether any particular destination would accept it. Grading eligibility (does this tool
+     * take over this block?) is deliberately separate from move feasibility (does this specific
+     * direction have room?): a grading-eligible block whose move is infeasible is a safe no-op,
+     * not a block grading has no opinion about.
+     */
+    public static boolean isGradingSource(Level level, BlockPos pos) {
+        return sourceInfo(level, pos).isPresent();
+    }
+
+    private record SourceInfo(LayeredBlock block, SmoothRules.Cell cell) {}
+
+    private static Optional<SourceInfo> sourceInfo(Level level, BlockPos pos) {
         BlockState sourceState = level.getBlockState(pos);
         LayeredBlock layeredBlock;
         SmoothRules.Cell source;
@@ -113,6 +126,17 @@ public final class Smoothing {
         } else {
             return Optional.empty();
         }
+        return Optional.of(new SourceInfo(layeredBlock, source));
+    }
+
+    private static Optional<Move> plan(Level level, BlockPos pos, Direction direction) {
+        Optional<SourceInfo> info = sourceInfo(level, pos);
+        if (info.isEmpty()) {
+            return Optional.empty();
+        }
+        LayeredBlock layeredBlock = info.get().block();
+        SmoothRules.Cell source = info.get().cell();
+        BlockState sourceState = level.getBlockState(pos);
 
         BlockPos destPos = pos.relative(direction);
         BlockState destState = level.getBlockState(destPos);

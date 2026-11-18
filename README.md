@@ -16,8 +16,13 @@ the earlier [Layered Slopes](https://github.com/brooswit-minecraft/layered-slope
 ## What this mod provides
 
 - **`GradingTool`** — the player-facing feature: right-click a block with a
-  pickaxe to pull one sixteenth of it toward you. Pickaxes have no vanilla
-  right-click action on blocks, so nothing vanilla is displaced.
+  pickaxe to pull one sixteenth of it toward you, or with a shovel to push one
+  sixteenth of it away from you. Pickaxes have no vanilla right-click action
+  on blocks, so nothing vanilla is displaced there. Shovels do (vanilla path
+  conversion), so grading takes over any shovel click on a block it
+  recognizes at all, even when the push itself can't proceed (unsupported or
+  blocked destination) — a safe no-op instead of an unexpected
+  flatten-to-path. Hoes are untouched and still till.
 - **`Smoothing`** — the `smooth()`/`canSmooth()` orchestrator that actually
   moves one layer of material from a block into a neighbour. Takes a
   `disturb` flag: `false` for manual grading and the debug command (grass
@@ -70,5 +75,55 @@ confirms `LayeredMaterials.layeredFor(DIRT)`/`layeredForSlab(STONE_SLAB)`
 resolve with no Dynamic Terrain installed, and
 `realVanillaDirtBlockGradesIntoNeighbourStandalone` grades a real plain
 vanilla `DIRT` block through `Smoothing.smooth()` end to end and checks
-the resulting layer counts. `scripts/check_gametest_count.py` fails
-closed unless both named tests actually ran and passed.
+the resulting layer counts.
+
+`GradingToolInteractionGameTests` (MINECRAFT-557) exercises the actual
+player-interaction seam: every test drives `ServerPlayer#gameMode`'s
+`useItemOn`, the real production entry point that fires
+`PlayerInteractEvent.RightClickBlock` on `NeoForge.EVENT_BUS` and falls
+through to vanilla block/item interaction exactly as a real client's
+click would — never `GradingTool`'s method called directly, and never
+`GameTestHelper#useBlock`, which bypasses that event entirely. Covers the
+retained pickaxe pull (regression), the new shovel push (cardinal and
+slab cases), a blocked/unsupported push staying a safe no-op instead of
+an unexpected flatten-to-path, a hoe's vanilla tilling being left alone,
+and an off-hand shovel never grading (so a click can't double-move a
+layer), plus a diagonal (dominant-Z) and an exactly-tied dx/dz approach
+for both tools — proving the interaction seam itself applies `Heading`'s
+dominant-axis/tie-break decision, not just that the pure helper does
+(that's `HeadingTest`'s job, in isolation). Also covers a supported grass
+source keeping its grass top (manual grading's `disturb=false`, at the
+real seam rather than only `SettlingTest`'s pure decision), a creative
+player's push succeeding with no durability lost, and a non-grading
+target (a block `Smoothing` has no mapping for at all, distinct from the
+hoe test's non-grading *tool*) left completely untouched. Also covers a
+push denied by MINECRAFT-510's `SmoothingAuthorizationEvent` (`main`'s
+generic Smoothing protection seam): `canSmooth()` alone would accept the
+move, but a denying listener still leaves it a safe no-op, with no
+mutation, durability charge, or vanilla path conversion -- regression
+coverage for the exact return-value bug an earlier review caught in
+`GradingTool`.
+
+`scripts/check_gametest_count.py` fails closed unless all 20 named
+required tests actually ran and passed (2 MINECRAFT-511 standalone + 14
+MINECRAFT-557 interaction-seam + 4 MINECRAFT-510 authorization/staleness).
+
+### Client-side evidence
+
+GameTests only run server-side, so none of the above can observe the
+client-prediction half of `GradingTool`'s `if (!level.isClientSide())`
+guard. `AcceptanceClient`/`AcceptanceServer` (`src/clientAcceptance/`,
+compiled only with `-PclientAcceptance`, ported from
+[Layered Slopes](https://github.com/brooswit-minecraft/layered-slopes)'
+own client-acceptance pattern) cover that: a real disposable server +
+real disposable client join over LAN, and the client drives
+`MultiPlayerGameMode#useItemOn` directly — the actual production method
+a mouse click calls, which fires the same `PlayerInteractEvent` as its
+server counterpart. It proves a grading-eligible shovel click is
+cancelled with no local block mutation and no local durability loss
+(the click packet is still sent to the server unconditionally,
+confirmed by reading `MultiPlayerGameMode#useItemOn`'s
+`startPrediction` call), and that the server's authoritative push still
+lands and syncs back to the client afterward. See
+`tools/client-smoke/acceptance.py` and the `client-acceptance` CI job
+(Xvfb + software GL, same as Layered Slopes').
