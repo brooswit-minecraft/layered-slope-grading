@@ -24,7 +24,8 @@ class RuntimeEvidenceError(ValueError):
     """The GameTest log cannot prove a complete, non-trivial run."""
 
 
-EXPECTED_REQUIRED_TEST_COUNT = 20  # 2 standalone (MINECRAFT-511) + 14 GradingToolInteractionGameTests (MINECRAFT-557)
+EXPECTED_REQUIRED_TEST_COUNT = 21  # 3 standalone (MINECRAFT-511, +1 dirt-path baseline MINECRAFT-569)
+# + 14 GradingToolInteractionGameTests (MINECRAFT-557)
 # + 4 cancellingTheAuthorizationEventLeavesBothEndsUnchanged/withNoListenerTheMoveStillSucceeds/
 # aListenerMutatingTheWorldDuringTheEventIsNotOverwrittenByAStalePlan/
 # aListenerRemovingOnlyTheSupportBlockIsNotOverwrittenByAStalePlan (MINECRAFT-510)

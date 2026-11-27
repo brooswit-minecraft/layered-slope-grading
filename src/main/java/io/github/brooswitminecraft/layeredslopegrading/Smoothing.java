@@ -1,7 +1,6 @@
 package io.github.brooswitminecraft.layeredslopegrading;
 
 import io.github.brooswitminecraft.layeredslopes.Anchor;
-import io.github.brooswitminecraft.layeredslopes.LayerMath;
 import io.github.brooswitminecraft.layeredslopes.LayeredBlock;
 import io.github.brooswitminecraft.layeredslopes.LayeredGrassBlock;
 
@@ -115,7 +114,10 @@ public final class Smoothing {
             layeredBlock = lb;
             source = new SmoothRules.Cell(sourceState.getValue(LayeredBlock.LAYERS), sourceState.getValue(LayeredBlock.ANCHOR).isCeiling());
         } else if ((layeredBlock = LayeredMaterials.layeredFor(sourceState.getBlock())) != null) {
-            source = new SmoothRules.Cell(LayerMath.MAX_LAYERS, false);
+            // Most registered base blocks are full blocks (16/16); LayeredBlock.floorLayerCount()
+            // also classifies vanilla dirt path at its real 15/16 starting height instead of
+            // treating it as a full block.
+            source = new SmoothRules.Cell(LayeredBlock.floorLayerCount(sourceState), false);
         } else if (sourceState.getBlock() instanceof SlabBlock
                 && (layeredBlock = LayeredMaterials.layeredForSlab(sourceState.getBlock())) != null) {
             if (sourceState.getValue(BlockStateProperties.WATERLOGGED)) {

@@ -71,4 +71,43 @@ public final class StandaloneGradingGameTests {
         helper.assertTrue(dest.getValue(LayeredBlock.LAYERS) == 1, "destination should have gained exactly one layer");
         helper.succeed();
     }
+
+    /**
+     * MINECRAFT-569: vanilla dirt path is not a full block -- it starts at 15/16, not 16/16 like
+     * ordinary registered bases (MINECRAFT-511's realVanillaDirtBlockGradesIntoNeighbourStandalone
+     * above). This proves Smoothing's sourceInfo() correctly classifies that baseline via
+     * LayeredBlock.floorLayerCount() rather than treating it as another full block, and that the
+     * graded source keeps the real collision height a 14-layer floor implies.
+     */
+    @GameTest(template = "flat_platform")
+    public static void realVanillaDirtPathGradesWithFifteenLayerBaselineStandalone(GameTestHelper helper) {
+        helper.assertTrue(LayeredMaterials.layeredFor(Blocks.DIRT_PATH) == LayeredSlopesMod.LAYERED_DIRT_PATH.get(),
+                "LayeredMaterials.layeredFor(DIRT_PATH) must resolve standalone, with no Dynamic Terrain installed");
+
+        BlockPos sourcePos = new BlockPos(1, 2, 1);
+        BlockPos destPos = sourcePos.relative(Direction.EAST);
+        BlockPos supportPos = destPos.below();
+
+        helper.setBlock(sourcePos, Blocks.DIRT_PATH.defaultBlockState());
+        helper.setBlock(destPos, Blocks.AIR.defaultBlockState());
+        helper.setBlock(supportPos, Blocks.STONE.defaultBlockState());
+
+        boolean moved = Smoothing.smooth(helper.getLevel(), helper.absolutePos(sourcePos), Direction.EAST);
+        helper.assertTrue(moved, "a plain vanilla DIRT_PATH block must grade through Smoothing with no Dynamic Terrain installed");
+
+        BlockState source = helper.getBlockState(sourcePos);
+        BlockState dest = helper.getBlockState(destPos);
+        helper.assertTrue(source.getBlock() == LayeredSlopesMod.LAYERED_DIRT_PATH.get(),
+                "the source cell must become the real LAYERED_DIRT_PATH after grading");
+        helper.assertTrue(dest.getBlock() == LayeredSlopesMod.LAYERED_DIRT_PATH.get(),
+                "the destination cell must become the real LAYERED_DIRT_PATH after grading");
+        helper.assertTrue(source.getValue(LayeredBlock.LAYERS) == 14,
+                "a path that started at 15/16 must lose its one graded layer down to 14, not 15 as a full block would");
+        helper.assertTrue(dest.getValue(LayeredBlock.LAYERS) == 1, "destination should have gained exactly one layer");
+
+        double collisionTop = source.getCollisionShape(helper.getLevel(), helper.absolutePos(sourcePos)).max(Direction.Axis.Y);
+        helper.assertTrue(Math.abs(collisionTop - 14 / 16.0) < 1e-8,
+                "graded path collision height must match its real 14-layer height, not a full block's");
+        helper.succeed();
+    }
 }
