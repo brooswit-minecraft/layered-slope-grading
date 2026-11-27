@@ -27,27 +27,8 @@ jobs:
       - name: Check the mod does not require a newer NeoForge than the pack runs
         run: python3 scripts/check_neoforge_floor.py
 
-      # MINECRAFT-569: this PR's LAYERED_DIRT_PATH usage needs layered-slopes' not-yet-released
-      # dirt-path addition (layered-slopes PR #3) -- the real pinned gradle.properties version
-      # (0.2.0) predates that class and cannot compile this PR. Same pattern dynamic-terrain used
-      # for MINECRAFT-499 (review comment 52571, commit bc9263c): check out the exact paired PR
-      # branch/commit, build it, and build/test this mod against that real jar via
-      # -PlayeredslopesLocalJar, proving compile+runtime compatibility against the actual source
-      # now rather than waiting on a release or touching the real pin. Remove this checkout step
-      # and the -PlayeredslopesLocalJar flags below, once layered-slopes#3 merges and releases and
-      # gradle.properties is repinned to that real version+sha512.
-      - name: Checkout paired Layered Slopes PR (MINECRAFT-569 dirt-path integration validation)
-        uses: actions/checkout@v4
-        with:
-          repository: brooswit-minecraft/layered-slopes
-          ref: 64f5bba00124277fe508528b2ed5a3f7449472c4
-          path: layered-slopes-paired
-
-      - name: Build paired Layered Slopes
-        run: cd layered-slopes-paired && ./gradlew build --no-daemon
-
-      - name: Build and test (against paired Layered Slopes PR artifact)
-        run: ./gradlew build --no-daemon -PlayeredslopesLocalJar=layered-slopes-paired/build/libs/layeredslopes-0.0.0.jar
+      - name: Build and test
+        run: ./gradlew build --no-daemon
 
       # MINECRAFT-511 (Jira comments 52878/52881 on this ticket): real runtime proof -- not just
       # compile-time -- that this mod resolves ordinary vanilla-block grading with Layered
@@ -58,7 +39,7 @@ jobs:
       - name: Run GameTests (standalone, no Dynamic Terrain)
         run: |
           set -o pipefail
-          ./gradlew runGameTestServer --no-daemon -PlayeredslopesLocalJar=layered-slopes-paired/build/libs/layeredslopes-0.0.0.jar 2>&1 | tee gametest.log
+          ./gradlew runGameTestServer --no-daemon 2>&1 | tee gametest.log
           python3 scripts/check_gametest_count.py gametest.log
 
       - name: Upload mod jar
@@ -92,29 +73,12 @@ jobs:
           cache: gradle
       - name: Install virtual display and software GL
         run: sudo apt-get update && sudo apt-get install -y xvfb xauth imagemagick libgl1-mesa-dri libopenal1
-      # MINECRAFT-569: same paired-PR reason as the build job above -- main sources reference
-      # LAYERED_DIRT_PATH, which only exists in layered-slopes' unreleased PR #3, not the real pin.
-      - name: Checkout paired Layered Slopes PR (MINECRAFT-569 dirt-path integration validation)
-        uses: actions/checkout@v4
-        with:
-          repository: brooswit-minecraft/layered-slopes
-          ref: 64f5bba00124277fe508528b2ed5a3f7449472c4
-          path: layered-slopes-paired
-      - name: Build paired Layered Slopes
-        run: cd layered-slopes-paired && ./gradlew build --no-daemon
-      # acceptance.py below launches its own `./gradlew runServer`/`runClient` subprocesses with a
-      # fixed arg list it does not accept overrides for, so the paired-jar override is exported as
-      # the Gradle-recognized ORG_GRADLE_PROJECT_* env var instead of a -P flag, covering every
-      # gradlew invocation (this step's and acceptance.py's) in this job uniformly.
       - name: Compile test-only client harness
-        env:
-          ORG_GRADLE_PROJECT_layeredslopesLocalJar: layered-slopes-paired/build/libs/layeredslopes-0.0.0.jar
         run: ./gradlew classes -PclientAcceptance --no-daemon -Dorg.gradle.jvmargs=-Xmx1G
       - name: Run disposable local server and real client
         env:
           LIBGL_ALWAYS_SOFTWARE: '1'
           ALSOFT_DRIVERS: 'null'
-          ORG_GRADLE_PROJECT_layeredslopesLocalJar: layered-slopes-paired/build/libs/layeredslopes-0.0.0.jar
         run: xvfb-run -a -s '-screen 0 1280x720x24' python3 tools/client-smoke/acceptance.py
       - name: Preserve client acceptance evidence
         if: always()
