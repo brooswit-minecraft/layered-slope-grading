@@ -1,6 +1,7 @@
 package io.github.brooswitminecraft.layeredslopegrading;
 
 import io.github.brooswitminecraft.layeredslopes.Anchor;
+import io.github.brooswitminecraft.layeredslopes.LayerMath;
 import io.github.brooswitminecraft.layeredslopes.LayeredBlock;
 import io.github.brooswitminecraft.layeredslopes.LayeredGrassBlock;
 
@@ -152,7 +153,20 @@ public final class Smoothing {
             kind = SmoothRules.Destination.SAME_MATERIAL;
             dest = new SmoothRules.Cell(destState.getValue(LayeredBlock.LAYERS), destState.getValue(LayeredBlock.ANCHOR).isCeiling());
         } else {
-            kind = SmoothRules.Destination.BLOCKED;
+            // A registered vanilla base below its 16/16 full height (e.g. dirt path's 15/16) still
+            // has room for an incoming layer, same as an existing same-material LayeredBlock does;
+            // an ordinary full vanilla base (floor already at 16/16) falls through to BLOCKED below,
+            // unchanged from before.
+            LayeredBlock destVanillaLayered = LayeredMaterials.layeredFor(destState.getBlock());
+            int destFloor = destVanillaLayered == null ? -1 : LayeredBlock.floorLayerCount(destState);
+            if (destVanillaLayered != null && destFloor < LayerMath.MAX_LAYERS
+                    && LayeredMaterials.sameGroup(layeredBlock, destVanillaLayered)) {
+                destBlock = destVanillaLayered;
+                kind = SmoothRules.Destination.SAME_MATERIAL;
+                dest = new SmoothRules.Cell(destFloor, false);
+            } else {
+                kind = SmoothRules.Destination.BLOCKED;
+            }
         }
         LayeredBlock finalDestBlock = destBlock;
         LayeredBlock sourceBlock = layeredBlock;

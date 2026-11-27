@@ -110,4 +110,58 @@ public final class StandaloneGradingGameTests {
                 "graded path collision height must match its real 14-layer height, not a full block's");
         helper.succeed();
     }
+
+    /**
+     * MINECRAFT-569 / Wroosbit review 56325: the raise half of the required behavior. A vanilla
+     * dirt path destination has room for one more layer (15/16, not a full 16/16 block), so
+     * pushing a layer onto it must convert it to LAYERED_DIRT_PATH at 16, not reject the move as
+     * BLOCKED the way an already-full vanilla base correctly does.
+     */
+    @GameTest(template = "flat_platform")
+    public static void realVanillaDirtPathAcceptsARaisedLayerToSixteenStandalone(GameTestHelper helper) {
+        BlockPos sourcePos = new BlockPos(1, 2, 1);
+        BlockPos destPos = sourcePos.relative(Direction.EAST);
+
+        helper.setBlock(sourcePos, Blocks.DIRT_PATH.defaultBlockState());
+        helper.setBlock(destPos, Blocks.DIRT_PATH.defaultBlockState());
+
+        boolean moved = Smoothing.smooth(helper.getLevel(), helper.absolutePos(sourcePos), Direction.EAST);
+        helper.assertTrue(moved, "pushing a layer onto a 15/16 vanilla dirt path must succeed, not be rejected as BLOCKED");
+
+        BlockState source = helper.getBlockState(sourcePos);
+        BlockState dest = helper.getBlockState(destPos);
+        helper.assertTrue(source.getBlock() == LayeredSlopesMod.LAYERED_DIRT_PATH.get() && source.getValue(LayeredBlock.LAYERS) == 14,
+                "source must drop from 15 to layered 14, same as the lowering case");
+        helper.assertTrue(dest.getBlock() == LayeredSlopesMod.LAYERED_DIRT_PATH.get() && dest.getValue(LayeredBlock.LAYERS) == 16,
+                "a vanilla dirt path receiving a layer must become layered 16, not stay at 15 or get rejected");
+
+        double destCollisionTop = dest.getCollisionShape(helper.getLevel(), helper.absolutePos(destPos)).max(Direction.Axis.Y);
+        helper.assertTrue(Math.abs(destCollisionTop - 1.0) < 1e-8,
+                "a raised-to-16 path's collision height must be a full block, matching 16/16");
+        helper.succeed();
+    }
+
+    /**
+     * MINECRAFT-569 / Wroosbit review 56325: the rejected/no-op case. Pushing into an already-full
+     * block (not air, not a layered/vanilla-path destination with room) must leave the vanilla
+     * dirt path completely untouched -- smooth() never mutates either side of a rejected move.
+     */
+    @GameTest(template = "flat_platform")
+    public static void realVanillaDirtPathRejectedPushLeavesItUntouchedStandalone(GameTestHelper helper) {
+        BlockPos sourcePos = new BlockPos(1, 2, 1);
+        BlockPos destPos = sourcePos.relative(Direction.EAST);
+
+        BlockState vanillaPath = Blocks.DIRT_PATH.defaultBlockState();
+        helper.setBlock(sourcePos, vanillaPath);
+        helper.setBlock(destPos, Blocks.STONE.defaultBlockState());
+
+        boolean moved = Smoothing.smooth(helper.getLevel(), helper.absolutePos(sourcePos), Direction.EAST);
+        helper.assertTrue(!moved, "pushing into an already-full, non-layered block must be rejected, not a surprise flatten-to-path");
+
+        BlockState source = helper.getBlockState(sourcePos);
+        helper.assertTrue(source.getBlock() == Blocks.DIRT_PATH && source == vanillaPath,
+                "a rejected move must leave the vanilla dirt path completely untouched");
+        helper.assertTrue(helper.getBlockState(destPos).getBlock() == Blocks.STONE, "a rejected move must not touch the destination either");
+        helper.succeed();
+    }
 }
