@@ -115,7 +115,10 @@ public final class Smoothing {
             layeredBlock = lb;
             source = new SmoothRules.Cell(sourceState.getValue(LayeredBlock.LAYERS), sourceState.getValue(LayeredBlock.ANCHOR).isCeiling());
         } else if ((layeredBlock = LayeredMaterials.layeredFor(sourceState.getBlock())) != null) {
-            source = new SmoothRules.Cell(LayerMath.MAX_LAYERS, false);
+            // Most registered base blocks are full blocks (16/16); LayeredBlock.floorLayerCount()
+            // also classifies vanilla dirt path at its real 15/16 starting height instead of
+            // treating it as a full block.
+            source = new SmoothRules.Cell(LayeredBlock.floorLayerCount(sourceState), false);
         } else if (sourceState.getBlock() instanceof SlabBlock
                 && (layeredBlock = LayeredMaterials.layeredForSlab(sourceState.getBlock())) != null) {
             if (sourceState.getValue(BlockStateProperties.WATERLOGGED)) {
@@ -150,7 +153,20 @@ public final class Smoothing {
             kind = SmoothRules.Destination.SAME_MATERIAL;
             dest = new SmoothRules.Cell(destState.getValue(LayeredBlock.LAYERS), destState.getValue(LayeredBlock.ANCHOR).isCeiling());
         } else {
-            kind = SmoothRules.Destination.BLOCKED;
+            // A registered vanilla base below its 16/16 full height (e.g. dirt path's 15/16) still
+            // has room for an incoming layer, same as an existing same-material LayeredBlock does;
+            // an ordinary full vanilla base (floor already at 16/16) falls through to BLOCKED below,
+            // unchanged from before.
+            LayeredBlock destVanillaLayered = LayeredMaterials.layeredFor(destState.getBlock());
+            int destFloor = destVanillaLayered == null ? -1 : LayeredBlock.floorLayerCount(destState);
+            if (destVanillaLayered != null && destFloor < LayerMath.MAX_LAYERS
+                    && LayeredMaterials.sameGroup(layeredBlock, destVanillaLayered)) {
+                destBlock = destVanillaLayered;
+                kind = SmoothRules.Destination.SAME_MATERIAL;
+                dest = new SmoothRules.Cell(destFloor, false);
+            } else {
+                kind = SmoothRules.Destination.BLOCKED;
+            }
         }
         LayeredBlock finalDestBlock = destBlock;
         LayeredBlock sourceBlock = layeredBlock;

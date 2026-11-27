@@ -2,6 +2,7 @@ package io.github.brooswitminecraft.layeredslopegrading;
 
 import io.github.brooswitminecraft.layeredslopes.LayeredSlopesMod;
 import static io.github.brooswitminecraft.layeredslopes.LayeredSlopesMod.LAYERED_DIRT;
+import static io.github.brooswitminecraft.layeredslopes.LayeredSlopesMod.LAYERED_DIRT_PATH;
 import static io.github.brooswitminecraft.layeredslopes.LayeredSlopesMod.LAYERED_GRASS;
 import static io.github.brooswitminecraft.layeredslopes.LayeredSlopesMod.LAYERED_STONE;
 import static io.github.brooswitminecraft.layeredslopes.LayeredSlopesMod.LAYERED_COBBLESTONE;
@@ -59,6 +60,10 @@ public class LayeredSlopeGradingMod {
 
     static {
         LayeredMaterials.register(Blocks.DIRT, LAYERED_DIRT);
+        // MINECRAFT-569: vanilla dirt path's real 15/16 starting height (not a full block) is
+        // classified by LayeredBlock.floorLayerCount(), which Smoothing's sourceInfo() consults;
+        // registering it here only makes the tool recognize the block, not its starting height.
+        LayeredMaterials.register(Blocks.DIRT_PATH, LAYERED_DIRT_PATH);
         LayeredMaterials.register(Blocks.SAND, LayeredSlopesMod.LAYERED_SAND);
         LayeredMaterials.register(Blocks.GRAVEL, LayeredSlopesMod.LAYERED_GRAVEL);
         LayeredMaterials.register(Blocks.STONE, LAYERED_STONE);
